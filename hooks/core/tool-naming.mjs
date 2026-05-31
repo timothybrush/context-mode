@@ -27,6 +27,7 @@ const TOOL_PREFIXES = {
   "zed":            (tool) => `mcp:context-mode:${tool}`,
   "cursor":         (tool) => tool,
   "codex":          (tool) => tool,
+  "kimi":           (tool) => `mcp__context-mode__${tool}`,
   "openclaw":       (tool) => tool,
   "pi":             (tool) => tool,
   "qwen-code":      (tool) => `mcp__context-mode__${tool}`,

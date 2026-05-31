@@ -120,6 +120,15 @@ const HOOK_MAP: Record<string, Record<string, string>> = {
     precompact: "hooks/jetbrains-copilot/precompact.mjs",
     sessionstart: "hooks/jetbrains-copilot/sessionstart.mjs",
   },
+  "kimi": {
+    pretooluse: "hooks/kimi/pretooluse.mjs",
+    posttooluse: "hooks/kimi/posttooluse.mjs",
+    precompact: "hooks/kimi/precompact.mjs",
+    sessionstart: "hooks/kimi/sessionstart.mjs",
+    sessionend: "hooks/kimi/sessionend.mjs",
+    userpromptsubmit: "hooks/kimi/userpromptsubmit.mjs",
+    stop: "hooks/kimi/stop.mjs",
+  },
   "qwen-code": {
     pretooluse: "hooks/pretooluse.mjs",
     posttooluse: "hooks/posttooluse.mjs",

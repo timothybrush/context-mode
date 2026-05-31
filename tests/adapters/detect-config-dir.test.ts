@@ -56,6 +56,9 @@ describe("detectPlatform — config directory branches", () => {
     [".cursor", "cursor"],
     [".kiro", "kiro"],
     [".pi", "pi"],
+    [".omp", "omp"],
+    [".qwen", "qwen-code"],
+    [".kimi-code", "kimi"],
     [".openclaw", "openclaw"],
   ])("detects %s → %s at medium confidence", (dir, expected) => {
     forceDir(resolve(home, dir));
@@ -146,6 +149,7 @@ describe("detectPlatform — config directory branches", () => {
     [".omp", "omp"],
     [".kiro", "kiro"],
     [".qwen", "qwen-code"],
+    [".kimi-code", "kimi"],
     [".gemini", "gemini-cli"],
     [".claude", "claude-code"],
     [".codex", "codex"],

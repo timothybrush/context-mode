@@ -345,6 +345,7 @@ export function getSessionDirSegments(platform: string): string[] | null {
     case "pi":               return [".pi"];
     case "omp":              return [".omp"];
     case "qwen-code":        return [".qwen"];
+    case "kimi":             return [".kimi-code"];
     case "kilo":             return [".config", "kilo"];
     case "opencode":         return [".config", "opencode"];
     case "zed":              return [".config", "zed"];
@@ -385,7 +386,7 @@ export function detectPlatform(clientInfo?: { name: string; version?: string }):
   if (platformOverride) {
     const validPlatforms: PlatformId[] = [
       "claude-code", "gemini-cli", "kilo", "opencode", "codex",
-      "vscode-copilot", "jetbrains-copilot", "cursor", "antigravity", "kiro", "pi", "omp", "zed", "qwen-code",
+      "vscode-copilot", "jetbrains-copilot", "cursor", "antigravity", "kiro", "pi", "omp", "zed", "qwen-code", "kimi",
     ];
     if (validPlatforms.includes(platformOverride as PlatformId)) {
       return {
@@ -492,6 +493,14 @@ export function detectPlatform(clientInfo?: { name: string; version?: string }):
       platform: "qwen-code",
       confidence: "medium",
       reason: "~/.qwen/ directory exists",
+    };
+  }
+
+  if (existsSync(resolve(home, ".kimi-code"))) {
+    return {
+      platform: "kimi",
+      confidence: "medium",
+      reason: "~/.kimi-code/ directory exists",
     };
   }
 
@@ -633,6 +642,11 @@ export async function getAdapter(platform?: PlatformId): Promise<HookAdapter> {
       // ~/.claude/context-mode/. PiAdapter pins storage to ~/.pi/.
       const { PiAdapter } = await import("./pi/index.js");
       return new PiAdapter();
+    }
+
+    case "kimi": {
+      const { KimiAdapter } = await import("./kimi/index.js");
+      return new KimiAdapter();
     }
 
     default: {

@@ -442,6 +442,7 @@ export type PlatformId =
   | "kiro"
   | "pi"
   | "omp"
+  | "kimi"
   | "zed"
   | "qwen-code"
   | "unknown";

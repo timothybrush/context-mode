@@ -175,6 +175,25 @@ export const KIRO_OPTS = {
   sessionIdEnv: undefined,    // No session ID env var — uses ppid fallback
 };
 
+/** Kimi Code CLI platform options.
+ *
+ * `KIMI_CODE_HOME` is documented at
+ *   refs/platforms/kimi-code/docs/zh/configuration/env-vars.md:11-21
+ *   refs/platforms/kimi-code/docs/en/configuration/env-vars.md:9-21
+ * and is read by MoonshotAI's own first-party plugins
+ *   refs/platforms/kimi-code/plugins/official/kimi-datasource/bin/
+ *     kimi-datasource.mjs:207-210
+ * so context-mode must honour it too — otherwise relocated Kimi installs
+ * keep the user's data root at `$KIMI_CODE_HOME` while context-mode keeps
+ * its session DB stranded at `~/.kimi-code/context-mode/sessions/`.
+ */
+export const KIMI_OPTS = {
+  configDir: ".kimi-code",
+  configDirEnv: "KIMI_CODE_HOME",
+  projectDirEnv: undefined,   // Kimi Code passes cwd in hook stdin, no env var
+  sessionIdEnv: undefined,    // Uses session_id from hook stdin or ppid fallback
+};
+
 /** JetBrains Copilot platform options. */
 export const JETBRAINS_OPTS = {
   configDir: ".config/JetBrains",

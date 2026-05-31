@@ -3151,6 +3151,91 @@ describe("Codex CLI hook dispatch (#225)", () => {
   });
 });
 
+// ── Kimi Code CLI hook dispatch (#729) ───────────────────────────────────
+
+describe("Kimi Code CLI hook dispatch (#729)", () => {
+  const CLI_SOURCE = readFileSync(resolve(ROOT, "src", "cli.ts"), "utf-8");
+
+  test("HOOK_MAP includes kimi platform", () => {
+    const mapStart = CLI_SOURCE.indexOf("const HOOK_MAP");
+    const mapEnd = CLI_SOURCE.indexOf("};", mapStart) + 2;
+    const hookMap = CLI_SOURCE.slice(mapStart, mapEnd);
+    expect(hookMap).toContain('"kimi"');
+  });
+
+  test("kimi HOOK_MAP has all Kimi hook dispatches including sessionend", () => {
+    const mapStart = CLI_SOURCE.indexOf("const HOOK_MAP");
+    const mapEnd = CLI_SOURCE.indexOf("};", mapStart) + 2;
+    const hookMap = CLI_SOURCE.slice(mapStart, mapEnd);
+    const kimiStart = hookMap.indexOf('"kimi"');
+    const kimiEnd = hookMap.indexOf("}", kimiStart + 10) + 1;
+    const kimiBlock = hookMap.slice(kimiStart, kimiEnd);
+    expect(kimiBlock).toContain("pretooluse");
+    expect(kimiBlock).toContain("posttooluse");
+    expect(kimiBlock).toContain("precompact");
+    expect(kimiBlock).toContain("sessionstart");
+    expect(kimiBlock).toContain("sessionend");
+    expect(kimiBlock).toContain("userpromptsubmit");
+    expect(kimiBlock).toContain("stop");
+  });
+
+  test("kimi hooks point to dedicated hooks/kimi/ directory", () => {
+    const mapStart = CLI_SOURCE.indexOf("const HOOK_MAP");
+    const mapEnd = CLI_SOURCE.indexOf("};", mapStart) + 2;
+    const hookMap = CLI_SOURCE.slice(mapStart, mapEnd);
+    const kimiStart = hookMap.indexOf('"kimi"');
+    const kimiEnd = hookMap.indexOf("}", kimiStart + 10) + 1;
+    const kimiBlock = hookMap.slice(kimiStart, kimiEnd);
+    expect(kimiBlock).toContain("hooks/kimi/pretooluse.mjs");
+    expect(kimiBlock).toContain("hooks/kimi/posttooluse.mjs");
+    expect(kimiBlock).toContain("hooks/kimi/precompact.mjs");
+    expect(kimiBlock).toContain("hooks/kimi/sessionstart.mjs");
+    expect(kimiBlock).toContain("hooks/kimi/sessionend.mjs");
+    expect(kimiBlock).toContain("hooks/kimi/userpromptsubmit.mjs");
+    expect(kimiBlock).toContain("hooks/kimi/stop.mjs");
+  });
+
+  test("configs/kimi/hooks.json commands match HOOK_MAP platform name", () => {
+    const hooksJson = JSON.parse(readFileSync(resolve(ROOT, "configs/kimi/hooks.json"), "utf-8"));
+    for (const [eventType, entries] of Object.entries(hooksJson.hooks)) {
+      for (const entry of entries as any[]) {
+        for (const hook of entry.hooks) {
+          expect(hook.command).toMatch(/context-mode hook kimi \w+/);
+        }
+      }
+    }
+  });
+
+  test("session-helpers.mjs exports KIMI_OPTS", () => {
+    const helpers = readFileSync(resolve(ROOT, "hooks/session-helpers.mjs"), "utf-8");
+    expect(helpers).toContain("export const KIMI_OPTS");
+  });
+
+  test("KIMI_OPTS uses .kimi-code config dir", () => {
+    const helpers = readFileSync(resolve(ROOT, "hooks/session-helpers.mjs"), "utf-8");
+    const optsStart = helpers.indexOf("KIMI_OPTS");
+    const optsEnd = helpers.indexOf("};", optsStart) + 2;
+    const optsBlock = helpers.slice(optsStart, optsEnd);
+    expect(optsBlock).toContain('".kimi-code"');
+  });
+
+  test("KIMI_OPTS honours KIMI_CODE_HOME env var", () => {
+    const helpers = readFileSync(resolve(ROOT, "hooks/session-helpers.mjs"), "utf-8");
+    const optsStart = helpers.indexOf("KIMI_OPTS");
+    const optsEnd = helpers.indexOf("};", optsStart) + 2;
+    const optsBlock = helpers.slice(optsStart, optsEnd);
+    expect(optsBlock).toContain('configDirEnv: "KIMI_CODE_HOME"');
+  });
+
+  test("kimi pretooluse formatter includes hookEventName in deny response", () => {
+    const formatters = readFileSync(resolve(ROOT, "hooks/core/formatters.mjs"), "utf-8");
+    const kimiStart = formatters.indexOf('"kimi"');
+    const kimiEnd = formatters.indexOf("},", kimiStart + 50);
+    const kimiBlock = formatters.slice(kimiStart, kimiEnd);
+    expect(kimiBlock).toContain('hookEventName: "PreToolUse"');
+  });
+});
+
 // ── Cursor stop hook (#HOOK_MAP cursor stop) ─────────────────────────────
 
 describe("Cursor CLI hook dispatch — stop event", () => {

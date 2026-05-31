@@ -18,6 +18,7 @@ import { QwenCodeAdapter } from "../../src/adapters/qwen-code/index.js";
 import { JetBrainsCopilotAdapter } from "../../src/adapters/jetbrains-copilot/index.js";
 import { OMPAdapter } from "../../src/adapters/omp/index.js";
 import { PiAdapter } from "../../src/adapters/pi/index.js";
+import { KimiAdapter } from "../../src/adapters/kimi/index.js";
 
 // ─────────────────────────────────────────────────────────
 // detectPlatform — env var detection
@@ -378,6 +379,13 @@ describe("detectPlatform", () => {
     expect(signal.confidence).toBe("high");
   });
 
+  it("returns kimi when clientInfo name is kimi-code", () => {
+    const signal = detectPlatform({ name: "kimi-code", version: "1.0" });
+    expect(signal.platform).toBe("kimi");
+    expect(signal.confidence).toBe("high");
+    expect(signal.reason).toContain("clientInfo");
+  });
+
   it("clientInfo takes priority over env vars", () => {
     process.env.CLAUDE_PROJECT_DIR = "/some/project";
     const signal = detectPlatform({ name: "antigravity-client", version: "1.0" });
@@ -404,6 +412,14 @@ describe("detectPlatform", () => {
     process.env.CONTEXT_MODE_PLATFORM = "kiro";
     const signal = detectPlatform();
     expect(signal.platform).toBe("kiro");
+    expect(signal.confidence).toBe("high");
+    expect(signal.reason).toContain("CONTEXT_MODE_PLATFORM");
+  });
+
+  it("returns kimi when CONTEXT_MODE_PLATFORM=kimi", () => {
+    process.env.CONTEXT_MODE_PLATFORM = "kimi";
+    const signal = detectPlatform();
+    expect(signal.platform).toBe("kimi");
     expect(signal.confidence).toBe("high");
     expect(signal.reason).toContain("CONTEXT_MODE_PLATFORM");
   });
@@ -463,7 +479,7 @@ describe("detectPlatform", () => {
   it("returns a valid platform as default when no env vars are set", () => {
     // No env vars set — result depends on which config dirs exist on this machine.
     const signal = detectPlatform();
-    expect(["claude-code", "gemini-cli", "codex", "cursor", "opencode", "kilo", "openclaw", "vscode-copilot", "antigravity", "kiro", "pi", "omp", "zed", "qwen-code", "jetbrains-copilot"]).toContain(signal.platform);
+    expect(["claude-code", "gemini-cli", "codex", "cursor", "opencode", "kilo", "openclaw", "vscode-copilot", "antigravity", "kiro", "pi", "omp", "zed", "qwen-code", "jetbrains-copilot", "kimi"]).toContain(signal.platform);
   });
 });
 
@@ -590,6 +606,11 @@ describe("getAdapter", () => {
 
     const adapter = await getAdapter(signal.platform);
     expect(adapter).toBeInstanceOf(OMPAdapter);
+  });
+
+  it("returns KimiAdapter for kimi", async () => {
+    const adapter = await getAdapter("kimi");
+    expect(adapter).toBeInstanceOf(KimiAdapter);
   });
 
   it("returns ClaudeCodeAdapter for unknown platform", async () => {

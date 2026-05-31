@@ -39,7 +39,7 @@ Context Mode is an MCP server that solves all four sides of this problem:
 
 1. **Context Saving** — Sandbox tools keep raw data out of the context window. 315 KB becomes 5.4 KB. 98% reduction.
 2. **Session Continuity** — Every file edit, git operation, task, error, and user decision is tracked in SQLite. When the conversation compacts, context-mode doesn't dump this data back into context — it indexes events into FTS5 and retrieves only what's relevant via BM25 search. The model picks up exactly where you left off. If you don't `--continue`, previous session data is deleted immediately — a fresh session means a clean slate.
-3. **Think in Code** — The LLM should program the analysis, not compute it. Instead of reading 50 files into context to count functions, the agent writes a script that does the counting and `console.log()`s only the result. One script replaces ten tool calls and saves 100x context. This is a mandatory paradigm across all 15 platforms: stop treating the LLM as a data processor, treat it as a code generator.
+3. **Think in Code** — The LLM should program the analysis, not compute it. Instead of reading 50 files into context to count functions, the agent writes a script that does the counting and `console.log()`s only the result. One script replaces ten tool calls and saves 100x context. This is a mandatory paradigm across all 16 platforms: stop treating the LLM as a data processor, treat it as a code generator.
 
    ```js
    // Before: 47 × Read() = 700 KB.  After: 1 × ctx_execute() = 3.6 KB.
@@ -628,6 +628,83 @@ The Codex plugin manifest provides MCP via `.codex-plugin/mcp.json`, skills via
 **Verify:** Start a session and type `ctx stats` to verify MCP. To verify hook routing, confirm Codex lists/trusts the context-mode plugin hooks, then run a command that matches the routing rules.
 
 **Routing:** MCP tools work after plugin install. Plugin hook routing is active only when `hooks` and `plugin_hooks` are enabled and Codex trusts the plugin hook commands. Manual hook routing is active when `$CODEX_HOME/hooks.json` or `~/.codex/hooks.json` is configured. The `AGENTS.md` file provides routing instructions for model awareness.
+
+</details>
+
+<details>
+<summary><strong>Kimi Code</strong> — MCP + hooks (TOML config, same JSON wire protocol as Codex)</summary>
+
+**Prerequisites:** Node.js >= 22.5 (or Bun), Kimi Code CLI installed.
+
+1. Install context-mode:
+
+   ```bash
+   npm install -g context-mode
+   ```
+
+2. Add context-mode as an MCP server. Add to `~/.kimi-code/mcp.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "context-mode": {
+         "command": "context-mode",
+         "args": []
+       }
+     }
+   }
+   ```
+
+3. Add hooks to `~/.kimi-code/config.toml`:
+
+   ```toml
+   [[hooks]]
+   event = "PreToolUse"
+   matcher = "Bash|Shell|Read|Edit|Write|WebFetch|Agent|ctx_execute|ctx_execute_file|ctx_batch_execute|ctx_fetch_and_index|ctx_search|ctx_index|mcp__"
+   command = "context-mode hook kimi pretooluse"
+   timeout = 30
+
+   [[hooks]]
+   event = "PostToolUse"
+   command = "context-mode hook kimi posttooluse"
+   timeout = 30
+
+   [[hooks]]
+   event = "SessionStart"
+   command = "context-mode hook kimi sessionstart"
+   timeout = 30
+
+   [[hooks]]
+   event = "PreCompact"
+   command = "context-mode hook kimi precompact"
+   timeout = 30
+
+   [[hooks]]
+   event = "UserPromptSubmit"
+   command = "context-mode hook kimi userpromptsubmit"
+   timeout = 30
+
+   [[hooks]]
+   event = "Stop"
+   command = "context-mode hook kimi stop"
+   timeout = 30
+   ```
+
+4. Restart Kimi Code CLI and verify MCP with `ctx stats`.
+
+   > **Note:** Kimi Code uses the same JSON stdin/stdout wire protocol as Codex, but accepts `additionalContext`, `updatedInput`, and `permissionDecision: "ask"` in PreToolUse responses (Codex rejects these). The kimi hook normalizes `ContentPart[]` prompt arrays to strings for downstream extractors.
+
+5. (Optional) Copy the routing instructions file for your project:
+
+   ```bash
+   cp "$(npm root -g)/context-mode/configs/codex/AGENTS.md" ./AGENTS.md
+   ```
+
+   Or for global use:
+
+   ```bash
+   CM_ROOT="$(npm root -g)/context-mode"; cp "$CM_ROOT/configs/codex/AGENTS.md" ~/.kimi-code/AGENTS.md
+   ```
 
 </details>
 
