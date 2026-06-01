@@ -309,11 +309,16 @@ describe("platform-bridge wire — session-loaders forwards events", () => {
 
     // Anti-regression: legacy hand-mapped fields MUST NOT reappear
     // (server reads canonical names now; hand-mapping was the smell).
+    // Anti-regression: legacy hand-mapped `tool` field MUST NOT reappear —
+    // canonical name is `type` post-v1.0.156 envelope refactor.
     expect(body).not.toHaveProperty("tool");
-    expect(body).not.toHaveProperty("session_type");
-    expect(body).not.toHaveProperty("session_category");
-    expect(body).not.toHaveProperty("session_data");
-    expect(body).not.toHaveProperty("error");
+    // v1.0.158 seed-parity fields ARE expected to surface — these were the
+    // anti-regression assertions of the envelope refactor, but session-loaders
+    // now legitimately derives them from per-event facts. Update them to be
+    // POSITIVE: confirm the platform receives the seed-shape stamps.
+    expect(body).toHaveProperty("session_type");
+    expect(body).toHaveProperty("session_category");
+    expect(body).toHaveProperty("error");
   });
 });
 

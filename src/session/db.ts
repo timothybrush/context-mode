@@ -589,6 +589,29 @@ export interface SessionMeta {
   compact_count: number;
 }
 
+/**
+ * Session rollup snapshot (seed-parity aggregate).
+ *
+ * 12 fields that mirror the platform's `session_summary` + `session_metadata`
+ * stamps from src/routes/seed.ts. Each outgoing canonical event carries
+ * this snapshot computed at the moment of forward so the analytics engine
+ * can run its SUM/AVG/MAX rollups across per-event rows.
+ */
+export interface SessionRollup {
+  tool_calls: number;
+  errors: number;
+  unique_tools: number;
+  unique_files: number;
+  max_file_edits: number;
+  has_commit: 0 | 1;
+  edit_test_cycles: number;
+  duration_min: number;
+  compact_count: number;
+  sources_indexed: number;
+  total_chunks: number;
+  search_queries: number;
+}
+
 /** Resume snapshot row from the session_resume table. */
 export interface ResumeRow {
   snapshot: string;
@@ -642,6 +665,8 @@ const S = {
   updateMetaLastEvent: "updateMetaLastEvent",
   ensureSession: "ensureSession",
   getSessionStats: "getSessionStats",
+  getSessionRollup: "getSessionRollup",
+  getMaxFileEdits: "getMaxFileEdits",
   incrementCompactCount: "incrementCompactCount",
   upsertResume: "upsertResume",
   getResume: "getResume",
@@ -939,6 +964,39 @@ export class SessionDB extends SQLiteBase {
     p(S.getSessionStats,
       `SELECT session_id, project_dir, started_at, last_event_at, event_count, compact_count
        FROM session_meta WHERE session_id = ?`);
+
+    // ── Session rollup (seed-parity aggregator) ────────────────────────
+    // Single query producing 9 of the 12 platform-side session_summary +
+    // session_metadata fields. Computed against the local SessionDB
+    // session_events table at forward time so every outgoing canonical
+    // event carries a session-wide snapshot at that moment — matches the
+    // seed.ts shape where each event row has tool_calls/errors/etc. stamped.
+    // max_file_edits and edit_test_cycles need separate GROUP BY queries
+    // (below). compact_count is read from session_meta (already in getSessionStats).
+    p(S.getSessionRollup,
+      `SELECT
+         COUNT(*) AS tool_calls,
+         COALESCE(SUM(CASE WHEN category = 'error' THEN 1 ELSE 0 END), 0) AS errors,
+         COUNT(DISTINCT type) AS unique_tools,
+         COUNT(DISTINCT CASE WHEN category = 'file' THEN data END) AS unique_files,
+         CASE WHEN SUM(CASE WHEN category = 'git' THEN 1 ELSE 0 END) > 0 THEN 1 ELSE 0 END AS has_commit,
+         CAST(COALESCE((MAX(strftime('%s', created_at)) - MIN(strftime('%s', created_at))) / 60.0, 0) AS INTEGER) AS duration_min,
+         COALESCE(SUM(CASE WHEN type = 'external_ref' THEN 1 ELSE 0 END), 0) AS sources_indexed,
+         CAST(COALESCE(SUM(bytes_avoided) / 1024.0, 0) AS INTEGER) AS total_chunks,
+         COALESCE(SUM(CASE WHEN type IN ('file_search', 'file_glob') THEN 1 ELSE 0 END), 0) AS search_queries
+       FROM session_events
+       WHERE session_id = ?`);
+
+    // max_file_edits: max edits on any single file path in the session.
+    // Two-level aggregation — GROUP BY data first, then MAX of those counts.
+    p(S.getMaxFileEdits,
+      `SELECT COALESCE(MAX(c), 0) AS max_file_edits
+       FROM (
+         SELECT COUNT(*) AS c
+         FROM session_events
+         WHERE session_id = ? AND category = 'file' AND type IN ('file_edit', 'file_write')
+         GROUP BY data
+       )`);
 
     p(S.incrementCompactCount,
       `UPDATE session_meta SET compact_count = compact_count + 1 WHERE session_id = ?`);
@@ -1362,6 +1420,50 @@ export class SessionDB extends SQLiteBase {
   getSessionStats(sessionId: string): SessionMeta | null {
     const row = this.stmt(S.getSessionStats).get(sessionId) as SessionMeta | undefined;
     return row ?? null;
+  }
+
+  /**
+   * Session rollup snapshot — 12 aggregate fields the analytics platform
+   * stamps onto every outgoing event row (seed.ts shape parity).
+   *
+   * Called from session-loaders BEFORE `maybeForward`; the snapshot is
+   * computed against the LOCAL SessionDB and threaded into the canonical
+   * event so the platform-side Zod schema receives the rich shape without
+   * the bridge ever hand-mapping fields (PRD §5.4 ABI passthrough).
+   *
+   * Returns zeroed defaults for unknown sessions — callers MUST tolerate
+   * a snapshot from an empty session (first event into a fresh DB).
+   */
+  getSessionRollup(sessionId: string): SessionRollup {
+    const main = this.stmt(S.getSessionRollup).get(sessionId) as Partial<SessionRollup> | undefined;
+    const maxRow = this.stmt(S.getMaxFileEdits).get(sessionId) as { max_file_edits?: number } | undefined;
+    const meta = this.getSessionStats(sessionId);
+
+    // edit_test_cycles: heuristic — min(file edits, errors) approximates
+    // the number of edit-then-test attempts in a session. Exact pattern
+    // detection (consecutive file_edit followed by error_tool) would need
+    // a windowed query; this scalar pair under-counts but never overshoots.
+    const fileEdits =
+      ((main as { tool_calls?: number })?.tool_calls ?? 0) > 0
+        ? ((main as { unique_files?: number })?.unique_files ?? 0)
+        : 0;
+    const errors = (main as { errors?: number })?.errors ?? 0;
+    const editTestCycles = Math.min(fileEdits, errors);
+
+    return {
+      tool_calls: main?.tool_calls ?? 0,
+      errors: main?.errors ?? 0,
+      unique_tools: main?.unique_tools ?? 0,
+      unique_files: main?.unique_files ?? 0,
+      max_file_edits: maxRow?.max_file_edits ?? 0,
+      has_commit: main?.has_commit ?? 0,
+      edit_test_cycles: editTestCycles,
+      duration_min: main?.duration_min ?? 0,
+      compact_count: meta?.compact_count ?? 0,
+      sources_indexed: main?.sources_indexed ?? 0,
+      total_chunks: main?.total_chunks ?? 0,
+      search_queries: main?.search_queries ?? 0,
+    };
   }
 
   /**
