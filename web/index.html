@@ -446,7 +446,7 @@ footer{padding:64px 0 40px;text-align:center;background:var(--bg-alt);border-top
     <div class="trust-grid rev">
       <div class="trust-headline">
         <strong>Engineers at these companies run the open-source plugin <em>locally</em>.</strong><br>
-        Insights is the opt-in org-layer extension currently in private beta.
+        Insights is the opt-in org-layer extension &mdash; Pro tier $20 per seat per month, self-serve at platform.context-mode.com.
       </div>
       <div class="trust-brands">
         <span>Microsoft</span><span>Google</span><span>Meta</span><span>ByteDance</span><span>Red Hat</span><span>GitHub</span><span>Stripe</span><span>Datadog</span><span>IBM</span><span>NVIDIA</span><span>Supabase</span><span>Amazon</span><span>Canva</span><span>Notion</span><span>Salesforce</span><span>Hasura</span><span>Framer</span><span>Cursor</span><span>Vercel</span><span>Anthropic</span>
@@ -1303,10 +1303,10 @@ commit_strong_cadence, commit_fix_heavy</span></pre>
 <section class="chapter" id="waitlist">
   <div class="wrap">
     <div class="rev" style="max-width:780px">
-      <p class="section-num">§ 11 · waitlist</p>
-      <h2 class="h2">Insights is in private beta.</h2>
+      <p class="section-num">§ 12 · waitlist</p>
+      <h2 class="h2">Want a guided rollout? Tell us about your team.</h2>
       <div class="rule"></div>
-      <p class="lead">Going live for design-partner orgs. Public access opens after we have shaped the patterns with the first cohort.</p>
+      <p class="lead">Self-serve at <a href="https://platform.context-mode.com/signup">platform.context-mode.com</a> &mdash; $20/seat from day one, no trial. This form is for orgs that want a guided rollout instead of self-serve.</p>
     </div>
 
     <form action="https://api.web3forms.com/submit" method="POST" class="waitlist-form rev">
@@ -1332,15 +1332,8 @@ commit_strong_cadence, commit_fix_heavy</span></pre>
         </div>
       </div>
       <div class="waitlist-field">
-        <span class="waitlist-label">Monthly budget for engineering analytics</span>
-        <div class="waitlist-radio-group" role="radiogroup" aria-label="Monthly budget for engineering analytics">
-          <label><input type="radio" name="monthly_budget" value="<$100" required><span>&lt;$100</span></label>
-          <label><input type="radio" name="monthly_budget" value="$100-499"><span>$100–499</span></label>
-          <label><input type="radio" name="monthly_budget" value="$500-1499"><span>$500–1,499</span></label>
-          <label><input type="radio" name="monthly_budget" value="$1500-4999"><span>$1,500–4,999</span></label>
-          <label><input type="radio" name="monthly_budget" value="$5000+"><span>$5,000+</span></label>
-          <label><input type="radio" name="monthly_budget" value="not_sure"><span>Not sure yet</span></label>
-        </div>
+        <label class="waitlist-label" for="wl-seats">How many engineers will see the dashboard?</label>
+        <input id="wl-seats" type="number" name="seat_count" min="1" max="500" placeholder="e.g. 47" required class="waitlist-input">
       </div>
       <div class="waitlist-field">
         <label class="waitlist-label" for="wl-message">Team context</label>
@@ -1348,16 +1341,16 @@ commit_strong_cadence, commit_fix_heavy</span></pre>
       </div>
       <button type="submit" class="cta pri">Join the waitlist →</button>
     </form>
-    <p class="muted rev" style="margin-top:14px;max-width:560px">No card required. Onboarding 5 design-partner orgs — we will reply with next steps and a 15-min walkthrough.</p>
+    <p class="muted rev" style="margin-top:14px;max-width:560px">We will reply within 24 hours with next steps and a 15-min walkthrough.</p>
 
     <div class="waitlist-bullets rev">
       <div class="waitlist-bullet">
-        <strong>Early access</strong>
-        <span>First in line when Insights opens beyond the design-partner cohort. Dashboard, REST API, remote MCP — all of it.</span>
+        <strong>Guided rollout</strong>
+        <span>We help you wire up Stripe, invite your members, configure org projects, and walk through the persona views together.</span>
       </div>
       <div class="waitlist-bullet">
-        <strong>Free Team-tier during design phase</strong>
-        <span>Design-partner orgs run on the Team tier at no cost while we shape v1. Pricing applies only after general availability.</span>
+        <strong>Same Pro tier, same price</strong>
+        <span>$20 per seat per month from day one. The form is for hand-onboarding, not a separate plan. Cancel any time from the Stripe Customer Portal.</span>
       </div>
       <div class="waitlist-bullet">
         <strong>Shape the patterns we ship</strong>
