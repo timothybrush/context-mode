@@ -766,6 +766,8 @@ The Codex plugin manifest provides MCP via `.codex-plugin/mcp.json`, skills via
    CM_ROOT="$(npm root -g)/context-mode"; cp "$CM_ROOT/configs/codex/AGENTS.md" ~/.kimi-code/AGENTS.md
    ```
 
+Full documentation: [`docs/adapters/kimi-code.md`](docs/adapters/kimi-code.md)
+
 </details>
 
 <details>
