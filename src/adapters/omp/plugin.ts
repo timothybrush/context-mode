@@ -30,11 +30,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveSessionDbPath, SessionDB } from "../../session/db.js";
-import { extractEvents } from "../../session/extract.js";
+import { extractEvents, buildAgentUsageEvent } from "../../session/extract.js";
 import type { HookInput } from "../../session/extract.js";
 import { buildResumeSnapshot } from "../../session/snapshot.js";
 import type { SessionEvent } from "../../types.js";
 import { OMPAdapter } from "./index.js";
+import { parseOmpUsage } from "./usage.js";
 
 // ── Tool-name normalization ─────────────────────────────
 // OMP uses lowercase tool names (refs/.../hooks/types.ts:451 example
@@ -218,6 +219,15 @@ type ToolResultEvent = {
   isError?: boolean;
 };
 type ToolCallEventResult = { block?: boolean; reason?: string };
+// turn_end / agent_end usage-bearing event. Shape is intentionally loose — the
+// pure parseOmpUsage() (usage.ts) does the null-safe field extraction. Refs:
+// AssistantMessage (refs/platforms/omp/packages/ai/src/types.ts:505-541),
+// Usage (refs/.../packages/catalog/src/types.ts:100-145).
+type TurnEndEvent = {
+  type?: string;
+  message?: unknown;
+  messages?: unknown;
+};
 type HookEventCtx = Record<string, unknown> | undefined;
 type HookHandler<E, R = void> = (event: E, ctx: HookEventCtx) => R | undefined | Promise<R | undefined>;
 
@@ -226,6 +236,10 @@ export interface MinimalHookAPI {
   on(event: "session_before_compact", handler: HookHandler<{ type: "session_before_compact" }>): void;
   on(event: "tool_call", handler: HookHandler<ToolCallEvent, ToolCallEventResult>): void;
   on(event: "tool_result", handler: HookHandler<ToolResultEvent>): void;
+  // turn_end carries a single per-turn AssistantMessage with `.usage`/`.model`
+  // (refs/.../extensibility/shared-events.ts:204-208). agent_end carries
+  // `messages: AssistantMessage[]` (:191-194) — both flow through parseOmpUsage.
+  on(event: "turn_end", handler: HookHandler<TurnEndEvent>): void;
   on(event: string, handler: (...args: unknown[]) => unknown): void;
 }
 
@@ -336,6 +350,31 @@ export default function ompPlugin(pi: MinimalHookAPI): void {
       db.incrementCompactCount(_sessionId);
     } catch {
       // best effort
+    }
+    return undefined;
+  });
+
+  // ── 5. turn_end — per-turn token + provider cost capture ──
+  // OMP exposes REAL per-turn tokens AND a provider-computed USD cost on the
+  // completed turn's AssistantMessage (`event.message.usage` / `.model`),
+  // delivered INCREMENTALLY per turn (matrix §2,§5). parseOmpUsage maps that to
+  // the buildAgentUsageEvent counts (Usage.cacheWrite→cache_creation,
+  // cacheRead→cache_read, cost.total→native_cost_usd). buildAgentUsageEvent
+  // prefers the native cost over the local price table and returns null on an
+  // all-zero turn. We persist via db.insertEvent — the SessionDB-backed forward
+  // path used everywhere in this in-process plugin runtime (the .mjs
+  // attributeAndInsertEvents helper is the Claude-hook analogue, not reachable
+  // here). Best-effort: a usage parse must never break the turn.
+  pi.on("turn_end", (event) => {
+    try {
+      if (!_sessionId) return undefined;
+      const counts = parseOmpUsage(event);
+      if (counts === null) return undefined;
+      const usageEvent = buildAgentUsageEvent(counts);
+      if (usageEvent === null) return undefined;
+      db.insertEvent(_sessionId, usageEvent as SessionEvent, "PostToolUse");
+    } catch {
+      // best effort — never break the turn on cost capture
     }
     return undefined;
   });

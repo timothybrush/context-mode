@@ -18,7 +18,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveSessionDbPath, SessionDB } from "../../session/db.js";
 import type { ProjectAttribution } from "../../session/project-attribution.js";
-import { extractEvents, extractUserEvents } from "../../session/extract.js";
+import { extractEvents, extractUserEvents, parsePiUsage, buildAgentUsageEvent } from "../../session/extract.js";
 import type { HookInput } from "../../session/extract.js";
 import { buildResumeSnapshot } from "../../session/snapshot.js";
 import type { SessionEvent } from "../../types.js";
@@ -789,6 +789,36 @@ export default function piExtension(pi: any): void {
       );
     } catch {
       // best effort — never break provider response
+    }
+  });
+
+  // ── 4c. turn_end — per-turn token + native-USD cost capture ───
+  //
+  // Pi delivers per-turn usage on TurnEndEvent.message (an AssistantMessage):
+  // usage.{input,output,cacheRead,cacheWrite} + native usage.cost.total in USD,
+  // with model on .model. Usage is per-turn incremental, so each turn_end maps
+  // to exactly one structured `agent_usage` (category "cost") event — the same
+  // shape the Claude Code Stop path emits via buildAgentUsageEvent. We pass
+  // Pi's native cost as native_cost_usd so the builder trusts the source over
+  // the local price table (cost_confidence: HIGH — no price-table maintenance).
+  //
+  // Refs: adapter-matrix/pi.md @320261f — shared-events.ts:204-209 (TurnEndEvent),
+  // ai/src/types.ts:510/521 (model/usage), catalog/src/types.ts:100-145 (Usage).
+  // Best-effort: parse is null-safe and the handler never throws (a telemetry
+  // forwarder must never break the agent turn).
+  pi.on("turn_end", (event: any) => {
+    try {
+      if (!_sessionId) return;
+      const counts = parsePiUsage(event);
+      if (!counts) return; // non-assistant turn or all-zero usage
+      const ev = buildAgentUsageEvent(counts);
+      if (!ev) return;
+      // db.insertEvent is the extension-side analog of the .mjs hooks'
+      // attributeAndInsertEvents (insert + project attribution). The MCP
+      // server forwards persisted agent_usage events to the platform.
+      db.insertEvent(_sessionId, ev as SessionEvent, "Stop", _attribution);
+    } catch {
+      // best effort — never break the agent turn
     }
   });
 
