@@ -1274,6 +1274,17 @@ export function getRealBytesStats(opts: {
             ).get(opts.sessionId) as { bytes: number } | undefined;
             if (snap?.bytes) snapshotBytes += Number(snap.bytes);
           } catch { /* old schema */ }
+          try {
+            // MCP tool returns (ctx_execute/ctx_search stdout, redirect stubs)
+            // land in tool_calls.bytes_returned via incrementToolCall, NOT in
+            // session_events.bytes_returned (which carries snapshot-replay only).
+            // Folding them here is what the "With context-mode" bar measures;
+            // without it a tool-heavy session rendered a false "1 B / 100%".
+            const tc = sdb.prepare(
+              "SELECT COALESCE(SUM(bytes_returned), 0) AS bytes FROM tool_calls WHERE session_id = ?",
+            ).get(opts.sessionId) as { bytes: number } | undefined;
+            if (tc?.bytes) bytesReturned += Number(tc.bytes);
+          } catch { /* old schema: no tool_calls table */ }
         } else if (opts.projectDir) {
           // Bug E+F: META-scoped aggregation. Take every session_id whose
           // session_meta.project_dir matches, then sum ALL of those
@@ -1307,6 +1318,16 @@ export function getRealBytesStats(opts: {
             ).get(opts.projectDir) as { bytes: number } | undefined;
             if (snap?.bytes) snapshotBytes += Number(snap.bytes);
           } catch { /* old schema */ }
+          try {
+            const tc = sdb.prepare(
+              `SELECT COALESCE(SUM(bytes_returned), 0) AS bytes
+               FROM tool_calls
+               WHERE session_id IN (
+                 SELECT session_id FROM session_meta WHERE project_dir = ?
+               )`,
+            ).get(opts.projectDir) as { bytes: number } | undefined;
+            if (tc?.bytes) bytesReturned += Number(tc.bytes);
+          } catch { /* old schema: no tool_calls table */ }
         } else {
           const row = sdb.prepare(
             `SELECT
@@ -1328,6 +1349,12 @@ export function getRealBytesStats(opts: {
             ).get() as { bytes: number } | undefined;
             if (snap?.bytes) snapshotBytes += Number(snap.bytes);
           } catch { /* old schema */ }
+          try {
+            const tc = sdb.prepare(
+              "SELECT COALESCE(SUM(bytes_returned), 0) AS bytes FROM tool_calls",
+            ).get() as { bytes: number } | undefined;
+            if (tc?.bytes) bytesReturned += Number(tc.bytes);
+          } catch { /* old schema: no tool_calls table */ }
         }
       } finally {
         sdb.close();

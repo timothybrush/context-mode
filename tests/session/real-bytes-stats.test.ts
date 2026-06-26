@@ -62,6 +62,7 @@ function seed(
   sessionId: string,
   events: Array<{ type: string; category: string; data: string; bytesAvoided?: number; bytesReturned?: number }>,
   snapshots?: Array<{ snapshot: string }>,
+  toolCalls?: Array<{ tool: string; bytesReturned: number }>,
 ): void {
   const sdb = new SessionDB({ dbPath });
   try {
@@ -88,6 +89,11 @@ function seed(
     if (snapshots) {
       for (const s of snapshots) {
         sdb.upsertResume(sessionId, s.snapshot, events.length);
+      }
+    }
+    if (toolCalls) {
+      for (const tc of toolCalls) {
+        sdb.incrementToolCall(sessionId, tc.tool, tc.bytesReturned);
       }
     }
   } finally {
@@ -122,6 +128,30 @@ describe("getRealBytesStats (Phase 8 renderer source-of-truth)", () => {
     const expectedTokens = Math.floor((r.eventDataBytes + r.bytesAvoided + r.snapshotBytes) / 4);
     expect(r.totalSavedTokens).toBe(expectedTokens);
     expect(r.totalSavedTokens).toBeGreaterThan(9_000); // ≈ 9_500
+  });
+
+  test("8.1b conversation tier: folds tool_calls.bytes_returned (MCP returns) into bytesReturned", () => {
+    // Production reality: ctx_execute / ctx_search return bytes to context via
+    // the tool_calls counter (incrementToolCall / persistToolCallCounter), NOT
+    // session_events.bytes_returned. A session with real MCP returns but no
+    // snapshot replay reported bytesReturned=0 before this fix, rendering the
+    // Section 1 bar as "With context-mode: 1 B / 100% kept out" — false.
+    const dir = mkSessionsDir();
+    const sid = `sess-${randomUUID()}`;
+    const dbPath = dbPathFor(dir, "cafebabecafebabe");
+    seed(
+      dbPath,
+      sid,
+      [{ type: "tool_use", category: "file", data: "src/app.ts", bytesAvoided: 90_000, bytesReturned: 0 }],
+      undefined,
+      [{ tool: "ctx_execute", bytesReturned: 8_000 }, { tool: "ctx_search", bytesReturned: 2_000 }],
+    );
+
+    const r = getRealBytesStats({ sessionId: sid, sessionsDir: dir });
+
+    // 8_000 + 2_000 from tool_calls — the bytes that actually entered context.
+    expect(r.bytesReturned).toBe(10_000);
+    expect(r.bytesAvoided).toBe(90_000);
   });
 
   test("8.5 lifetime tier: omitting sessionId aggregates every session in sessionsDir", () => {
